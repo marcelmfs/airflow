@@ -187,7 +187,7 @@ web_server_port = 8080
 secret_key = temporary_key
 
 # Number of workers to run the Gunicorn web server
-workers = 4
+workers = 2
 
 # The worker class gunicorn should use. Choices include
 # sync (default), eventlet, gevent
