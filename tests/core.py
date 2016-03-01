@@ -27,7 +27,7 @@ from lxml import html
 from airflow.utils import AirflowException
 from airflow.configuration import AirflowConfigException
 
-NUM_EXAMPLE_DAGS = 7
+NUM_EXAMPLE_DAGS = 8
 DEV_NULL = '/dev/null'
 DEFAULT_DATE = datetime(2015, 1, 1)
 DEFAULT_DATE_ISO = DEFAULT_DATE.isoformat()
@@ -317,12 +317,12 @@ class CoreTest(unittest.TestCase):
         captainHook.run("drop table operator_test_table")
 
     def test_clear_api(self):
-        task = self.dag_bash.tasks[0]
+        task = self.dag_bash.get_task('run_after_loop')
         task.clear(
             start_date=DEFAULT_DATE, end_date=DEFAULT_DATE,
             upstream=True, downstream=True)
         ti = models.TaskInstance(task=task, execution_date=DEFAULT_DATE)
-        ti.are_dependents_done()
+        ti.are_dependencies_met()
 
     def test_bash_operator(self):
         t = operators.BashOperator(
@@ -630,12 +630,12 @@ class CoreTest(unittest.TestCase):
             self.runme_0.set_upstream(self.run_after_loop)
 
     def test_cyclic_dependencies_2(self):
-        regexp = "Cycle detected in DAG. (.*)run_after_loop(.*)"
+        regexp = "Cycle detected in DAG. (.*)runme_0(.*)"
         with self.assertRaisesRegexp(AirflowException, regexp):
             self.run_after_loop.set_downstream(self.runme_0)
 
     def test_cyclic_dependencies_3(self):
-        regexp = "Cycle detected in DAG. (.*)run_this_last(.*)"
+        regexp = "Cycle detected in DAG. (.*)runme_0(.*)"
         with self.assertRaisesRegexp(AirflowException, regexp):
             self.run_this_last.set_downstream(self.runme_0)
 
@@ -746,6 +746,15 @@ class WebUiTests(unittest.TestCase):
         assert 'The server is healthy!' in response.data.decode('utf-8')
 
     def test_dag_views(self):
+
+        # test that edge labels are well formed
+        response = self.app.get(
+            '/admin/airflow/graph?dag_id=example_range_operator')
+        assert '"label": "(-4, -2)"' in response.data.decode('utf-8')
+        assert '"label": "-1"' in response.data.decode('utf-8')
+        # test that a '0' trigger is not displayed on the edge
+        assert '"label": ""' in response.data.decode('utf-8')
+
         response = self.app.get(
             '/orchestrator/airflow/graph?dag_id=example_bash_operator')
         assert "runme_0" in response.data.decode('utf-8')

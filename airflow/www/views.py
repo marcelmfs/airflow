@@ -1138,9 +1138,11 @@ class Airflow(BaseView):
             visited.add(task)
             node_count[0] += 1
 
-            children = [
-                recurse_nodes(t, visited) for t in task.upstream_list
-                if node_count[0] < node_limit or t not in visited]
+            children = []
+            for ta in task.upstream_list:
+                if ta.task_id != task.task_id:
+                    if node_count[0] < node_limit or ta not in visited:
+                        children.append(recurse_nodes(ta, visited))
 
             # D3 tree uses children vs _children to define what is
             # expanded or not. The following block makes it such that
@@ -1227,14 +1229,31 @@ class Airflow(BaseView):
             })
 
         def get_upstream(task):
-            for t in task.upstream_list:
+
+            triggers = task.triggers + task.triggers_from_the_past
+
+            for t in triggers:
+                past_executions = t.past_executions
+
+                if isinstance(past_executions, tuple) \
+                and len(past_executions) == 2 \
+                and past_executions[0] == past_executions[1]:
+                    # If no dependence on past task, label not displayed
+                    if past_executions[0] == 0:
+                        past_executions = ''
+                    else:
+                        past_executions = past_executions[0]
+
                 edge = {
-                    'u': t.task_id,
+                    'u': t.task.task_id,
                     'v': task.task_id,
+                    'value': {
+                        'label': str(past_executions)
+                    }
                 }
                 if edge not in edges:
                     edges.append(edge)
-                    get_upstream(t)
+                    get_upstream(t.task)
 
         for t in dag.roots:
             get_upstream(t)
